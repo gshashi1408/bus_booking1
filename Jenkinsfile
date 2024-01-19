@@ -1,7 +1,5 @@
 pipeline {
-    agent {
-        label 'slave2'
-    }
+    agent { label 'slave2' }
     stages {
         stage('checkout') {
             steps {
@@ -13,47 +11,50 @@ pipeline {
         stage('build') {
             steps {
                 script {
-                    sh 'mvn --version'
-                    sh 'mvn clean install'
+                    sh "mvn clean install"
+                }
+            }
+        }
+		stage('Deploy to JFrog Artifactory') {
+            steps {
+               // Remember this is the step which I followed for free style project.
+                script {
+                    rtServer(
+                        id: "Artifact",
+                        url: "http://43.205.243.10:8081/",
+                        username: "test1",
+                        password: "Welcome@123"
+                    )
                 }
             }
         }
 
-        stage('Show Contents of target') {
+        stage('Upload') {
             steps {
                 script {
-                    // Print the contents of the target directory
-                    sh 'ls -l target'
+		// For my  undertanding rtUpload is a part of jFrog Artifactory plugin to upload artifacts to artifacts repo
+                    rtUpload (
+                        serverId: 'Artifact',
+                        spec: '''{
+                            "files": [
+                                {
+                                    "pattern": "target/*.jar",
+                                    "target": "libs-release-local/"
+                                }
+                            ]
+                        }'''
+                    )
                 }
             }
         }
 
-        stage('Run JAR Locally') {
+        stage('Publish build info') {
             steps {
                 script {
-                    // Run the JAR file using java -jar
-                    sh "nohup timeout 10s java -jar target/bus-booking-app-1.0-SNAPSHOT.jar > output.log 2>&1 &"
-                    // Sleep for a while to allow the application to start (adjust as needed)
-                    sleep 10
+		    // For my understanding to publish build info
+                    rtPublishBuildInfo serverId: "Artifact"
                 }
             }
-        }
-        
-        stage('deploy') {
-            steps {
-                sh 'ssh root@172.31.37.35'
-                sh "scp /home/slave2/workspace/busbooking156_develop/target/bus-booking-app-1.0-SNAPSHOT.jar root@172.31.37.35:/root/apache-tomcat-8.5.98/webapps/"
-            }
-        }
-        
-    }
-        
-    post {
-        success {
-            echo "Build, Run, and Deployment to Tomcat successful!"
-        }
-        failure {
-            echo "Build, Run, and Deployment to Tomcat failed!"
         }
     }
 }
